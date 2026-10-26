@@ -84,6 +84,14 @@ header,main{position:relative;z-index:2}
 .tilt:hover{box-shadow:0 18px 50px rgba(20,60,90,.28),inset 0 1px 0 rgba(255,255,255,.7)}
 @media(max-width:900px){#hero{align-items:end;padding-bottom:110px}.hero-copy{padding:22px}.hint{bottom:56px}}
 @media(prefers-reduced-motion:reduce){.sp span{animation:none;opacity:1;transform:none}.glow,.pill::before{animation:none}.rv{opacity:1;translate:none}.tilt{transition:none}}
+main[hidden]{display:none}
+/* ===== doctor colour coding ===== */
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:middle;margin-inline-end:6px;border:1px solid rgba(0,0,0,.25);flex:none}
+td.dc select{font-weight:600;color:#10282b}
+td.dc select option{background:#fff;color:#10282b}
+.chip.dcc{font-weight:600;color:#10282b}
+.dl label .dot{margin:0}
+td.dn{text-align:start;font-weight:600;color:#10282b}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -102,7 +110,7 @@ header,main{position:relative;z-index:2}
   <div class="credit"><div class="pill sp" dir="ltr" data-depth=".09" data-letters>Designed by: Dr. Zaid Saad</div></div>
 </section>
 
-<main id="app">
+<main id="app" hidden>
   <section class="card">
     <h2>الإعدادات الأساسية</h2>
     <div class="row">
@@ -173,6 +181,27 @@ const dow=d=>new Date(S.year,S.month,d).getDay();
 const pad=n=>String(n).padStart(2,'0');
 const phoneOf=n=>(S.docs.find(d=>d.name===n)||{}).phone||'';
 
+/* ---------- doctor colour coding ----------
+   Each doctor gets a fixed colour from his/her position in the uploaded Excel list.
+   The first 30 doctors use a hand-built palette whose colours are spread as far apart as
+   possible (CIELAB distance); beyond 30 the colours continue automatically.
+   Hex values are used (not hsl) so Word / PDF exports keep the colours. */
+function hsl2hex(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),
+  f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1))),x=v=>Math.round(255*v).toString(16).padStart(2,'0');
+  return '#'+x(f(0))+x(f(8))+x(f(4))}
+const PALETTE=["#d59090","#79ec79","#7979ec","#79e0ec","#ecd579","#ec79c9","#b6b6ed","#eee9d3","#90d59e","#f7c9e0","#c9ec79","#e0b385","#c979ec","#c9e0f7","#ec799c","#edaff4","#dff4af","#b6edd7","#79beec","#858ee0","#ec7979","#d590b3","#edc1b6","#a6f094","#c294f0","#79ecc9","#79eca7","#ec9c79","#e7d89d","#79a7ec"];
+function shade(hex,f){const v=[1,3,5].map(i=>Math.round(parseInt(hex.substr(i,2),16)*f));return '#'+v.map(x=>x.toString(16).padStart(2,'0')).join('')}
+function docColor(n){
+  let i=S.docs.findIndex(d=>d.name===n);
+  if(i<0){i=S.docs.length;for(const ch of String(n))i+=ch.charCodeAt(0)}
+  let bg;
+  if(i<PALETTE.length)bg=PALETTE[i];
+  else{const h=((i-PALETTE.length)*137.508)%360;bg=hsl2hex(h,70,[78,84,72][i%3])} /* 31st doctor onwards */
+  return {bg,dot:shade(bg,.62)};
+}
+const dotHtml=n=>n?`<i class="dot" style="background:${docColor(n).dot}"></i>`:'';
+const cellStyle=n=>{if(!n)return '';const c=docColor(n);return `background:${c.bg};border-inline-start:7px solid ${c.dot}`};
+
 /* ---------- setup ---------- */
 $('selM').innerHTML=MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
 function monthLabel(){$('monthLbl').textContent=MONTHS[S.month]+' '+S.year}
@@ -203,7 +232,7 @@ function refreshSelects(){
   $('priSel').innerHTML=opts; $('rDoc').innerHTML=opts;
 }
 function renderChips(){
-  $('priChips').innerHTML=S.priority.map((n,i)=>`<span class="chip">${esc(n)} <button class="x" data-i="${i}" aria-label="حذف">×</button></span>`).join('')||'<span class="muted">لا يوجد</span>';
+  $('priChips').innerHTML=S.priority.map((n,i)=>`<span class="chip dcc" style="background:${docColor(n).bg};border-color:${docColor(n).dot}">${esc(n)} <button class="x" data-i="${i}" aria-label="حذف">×</button></span>`).join('')||'<span class="muted">لا يوجد</span>';
   $('priChips').querySelectorAll('.x').forEach(b=>b.onclick=()=>{S.priority.splice(b.dataset.i,1);renderChips()});
 }
 function renderRules(){
@@ -227,7 +256,7 @@ $('btnDate').onclick=()=>{$('selM').value=S.month;$('selY').value=S.year;$('dlgD
 $('dateOk').onclick=()=>{S.month=+$('selM').value;S.year=+$('selY').value||S.year;monthLabel();$('dlgDate').close()};
 $('btnDocs').onclick=()=>{
   if(!S.docs.length)return alert('ارفع ملف الأطباء أولاً.');
-  $('docList').innerHTML=S.docs.map((d,i)=>`<label><input type="checkbox" data-n="${i}" ${S.active.has(d.name)?'checked':''}> ${esc(d.name)}</label>`).join('');
+  $('docList').innerHTML=S.docs.map((d,i)=>`<label><input type="checkbox" data-n="${i}" ${S.active.has(d.name)?'checked':''}> ${dotHtml(d.name)}${esc(d.name)}</label>`).join('');
   $('dlgDocs').showModal();
 };
 $('allOn').onclick=()=>$('docList').querySelectorAll('input').forEach(c=>c.checked=true);
@@ -313,12 +342,12 @@ function render(){
   let rows='';
   for(let d=1;d<=N;d++){
     const w=dow(d),cls=w===5?'fri':w===6?'sat':'';
-    const opts=all.map(n=>`<option ${n===S.sched[d]?'selected':''}>${esc(n)}</option>`).join('');
-    rows+=`<tr class="${cls}"><td>${d}</td><td>${pad(d)}/${pad(S.month+1)}/${S.year}</td><td>${DAYS[w]}</td><td><select data-d="${d}">${opts}</select></td><td class="ph" id="ph${d}" dir="ltr">${esc(phoneOf(S.sched[d]))}</td></tr>`;
+    const opts=all.map(n=>`<option style="background:${docColor(n).bg}" ${n===S.sched[d]?'selected':''}>${esc(n)}</option>`).join('');
+    rows+=`<tr class="${cls}"><td>${d}</td><td>${pad(d)}/${pad(S.month+1)}/${S.year}</td><td>${DAYS[w]}</td><td class="dc" id="dc${d}" style="${cellStyle(S.sched[d])}"><select data-d="${d}">${opts}</select></td><td class="ph" id="ph${d}" dir="ltr">${esc(phoneOf(S.sched[d]))}</td></tr>`;
   }
   $('schedWrap').innerHTML=`<p class="title">${esc(titleText())}</p><table><thead><tr><th>التسلسل</th><th>التاريخ</th><th>اليوم</th><th>اسم الطبيب</th><th>رقم الهاتف</th></tr></thead><tbody>${rows}</tbody></table>`;
   $('schedWrap').querySelectorAll('select').forEach(s=>s.onchange=()=>{
-    const d=+s.dataset.d;S.sched[d]=s.value;$('ph'+d).textContent=phoneOf(s.value);summarize();
+    const d=+s.dataset.d;S.sched[d]=s.value;$('ph'+d).textContent=phoneOf(s.value);$('dc'+d).setAttribute('style',cellStyle(s.value));summarize();
   });
   summarize();
 }
@@ -342,7 +371,7 @@ function summarize(){
     const w=dow(d);
     if((w===5||w===6)&&S.sched[d]&&S.sched[d]===S.sched[d-7])flag(S.sched[d],`${DAYS[w]} متتالية (يوم ${d-7} ويوم ${d})`);
   }
-  $('summary').innerHTML=`<table><thead><tr><th>الطبيب</th><th>الكل</th><th>الجمعة</th><th>السبت</th><th>الحالة</th></tr></thead><tbody>${names.map(n=>`<tr><td>${esc(n)}</td><td>${c[n].t}</td><td>${c[n].f}</td><td>${c[n].s}</td><td><span class="badge ${issues[n]?'b-warn':'b-ok'}">${issues[n]?'تنبيه':'متوازن'}</span></td></tr>`).join('')}</tbody></table>`;
+  $('summary').innerHTML=`<table><thead><tr><th>الطبيب</th><th>الكل</th><th>الجمعة</th><th>السبت</th><th>الحالة</th></tr></thead><tbody>${names.map(n=>`<tr><td class="dn" style="${cellStyle(n)}">${esc(n)}</td><td>${c[n].t}</td><td>${c[n].f}</td><td>${c[n].s}</td><td><span class="badge ${issues[n]?'b-warn':'b-ok'}">${issues[n]?'تنبيه':'متوازن'}</span></td></tr>`).join('')}</tbody></table>`;
   $('alerts').innerHTML=msgs.length?msgs.map(m=>`<div class="alert" role="alert">⚠ ${esc(m)}</div>`).join(''):'<div class="okmsg">توزيع الجمع والسبوت متوازن، ولا توجد خفارات متتالية في نفس اليوم من الأسبوع.</div>';
 }
 
@@ -351,7 +380,7 @@ function cleanTable(){
   let r='';
   for(let d=1;d<=dim();d++){
     const w=dow(d),bg=w===5?'#fff1cf':w===6?'#e1edff':'#fff';
-    r+=`<tr style="background:${bg}"><td>${d}</td><td>${pad(d)}/${pad(S.month+1)}/${S.year}</td><td>${DAYS[w]}</td><td>${esc(S.sched[d])}</td><td dir="ltr">${esc(phoneOf(S.sched[d]))}</td></tr>`;
+    r+=`<tr style="background:${bg}"><td>${d}</td><td>${pad(d)}/${pad(S.month+1)}/${S.year}</td><td>${DAYS[w]}</td><td${S.sched[d]?` bgcolor="${docColor(S.sched[d]).bg}" style="background:${docColor(S.sched[d]).bg};border-right:6px solid ${docColor(S.sched[d]).dot}"`:''}>${esc(S.sched[d])}</td><td dir="ltr">${esc(phoneOf(S.sched[d]))}</td></tr>`;
   }
   const cell='border:1px solid #444;padding:4px 6px;text-align:center;font-size:12px';
   return `<h2 style="text-align:center;font-size:16px;margin:0 0 10px">${esc(titleText())}</h2>
@@ -371,14 +400,23 @@ $('expDoc').onclick=()=>{
 };
 $('expPdf').onclick=async()=>{
   if(!need())return;
+  /* html2canvas captures relative to the page scroll position: with a scrolled page the
+     off-screen element was captured empty (blank PDF). Scroll to top, use an absolutely
+     positioned wrapper and tell html2canvas the scroll offset is 0. */
+  const sx=scrollX,sy=scrollY;scrollTo(0,0);
   const el=document.createElement('div');
-  el.dir='rtl';el.style.cssText='position:fixed;top:0;left:0;width:720px;background:#fff;color:#000;padding:10px;z-index:-1;font-family:Cairo,Arial,sans-serif';
+  el.dir='rtl';
+  el.style.cssText='position:absolute;top:0;left:0;width:720px;background:#fff;color:#000;padding:10px;z-index:-1;font-family:Cairo,Arial,sans-serif';
   el.innerHTML=cleanTable();document.body.appendChild(el);
   try{
     if(document.fonts)await document.fonts.ready;
-    await html2pdf().set({margin:10,filename:fname()+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(el).save();
-  }catch(e){alert('تعذّر إنشاء PDF.')}
-  el.remove();
+    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    await html2pdf().set({margin:10,filename:fname()+'.pdf',image:{type:'jpeg',quality:.98},
+      html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0,x:0,y:0,windowWidth:760,width:el.offsetWidth,height:el.offsetHeight},
+      pagebreak:{mode:['css','legacy'],avoid:'tr'},
+      jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(el).save();
+  }catch(e){console.error(e);alert('تعذّر إنشاء PDF.')}
+  el.remove();scrollTo(sx,sy);
 };
 </script>
 <script>
@@ -523,6 +561,12 @@ if(!reduce&&matchMedia('(hover:hover)').matches)document.querySelectorAll('.card
  c.addEventListener('pointerleave',()=>{c.style.setProperty('--rx','0deg');c.style.setProperty('--ry','0deg')})});
 if(!reduce&&'IntersectionObserver'in window){const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.08});
  document.querySelectorAll('main>*').forEach(el=>{el.classList.add('rv');io.observe(el)})}
+/* front page shows only the welcome; the app appears after pressing the start button */
+const app=document.getElementById('app'),cta=hero.querySelector('.cta');
+cta.setAttribute('role','button');cta.setAttribute('aria-controls','app');cta.setAttribute('aria-expanded','false');
+cta.addEventListener('click',e=>{e.preventDefault();
+ if(app.hidden){app.hidden=false;cta.setAttribute('aria-expanded','true');cta.textContent='جدول جديد';schedule()}
+ requestAnimationFrame(()=>app.scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'}))},sig);
 schedule();
 })();
 </script>
