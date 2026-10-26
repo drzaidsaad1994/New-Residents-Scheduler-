@@ -85,13 +85,6 @@ header,main{position:relative;z-index:2}
 @media(max-width:900px){#hero{align-items:end;padding-bottom:110px}.hero-copy{padding:22px}.hint{bottom:56px}}
 @media(prefers-reduced-motion:reduce){.sp span{animation:none;opacity:1;transform:none}.glow,.pill::before{animation:none}.rv{opacity:1;translate:none}.tilt{transition:none}}
 main[hidden]{display:none}
-/* ===== doctor colour coding ===== */
-.dot{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:middle;margin-inline-end:6px;border:1px solid rgba(0,0,0,.25);flex:none}
-td.dc select{font-weight:700;color:inherit}
-td.dc select option{background:#fff}
-.chip.dcc{font-weight:700}
-.dl label .dot{margin:0}
-td.dn{text-align:start;font-weight:700}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -181,23 +174,6 @@ const dow=d=>new Date(S.year,S.month,d).getDay();
 const pad=n=>String(n).padStart(2,'0');
 const phoneOf=n=>(S.docs.find(d=>d.name===n)||{}).phone||'';
 
-/* ---------- doctor colour coding ----------
-   Each doctor gets a fixed colour from his/her position in the uploaded Excel list.
-   Each doctor gets a fixed FONT colour (dark enough to read on white and on the Friday/Saturday tints). The first 30 use a hand-built palette spread as far apart as possible; beyond 30 colours continue automatically.
-   Hex values are used (not hsl) so Word / PDF exports keep the colours. */
-function hsl2hex(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),
-  f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1))),x=v=>Math.round(255*v).toString(16).padStart(2,'0');
-  return '#'+x(f(0))+x(f(8))+x(f(4))}
-const PALETTE=["#4a6a1b","#0000e0","#e00069","#0074c2","#c24e00","#730085","#6a1b20","#0d7777","#c200e0","#005ae0","#1b256a","#774d0d","#e0002d","#9b276d","#008500","#1b4a6a","#000ba3","#ca16a6","#008558","#a3002c","#852300","#857300","#1b0d77","#7616ca","#6a1b40","#2d51b4","#277c9b","#551b6a","#b42d5a","#a36200"];
-function docColor(n){
-  let i=S.docs.findIndex(d=>d.name===n);
-  if(i<0){i=S.docs.length;for(const ch of String(n))i+=ch.charCodeAt(0)}
-  const fg=i<PALETTE.length?PALETTE[i]:hsl2hex(((i-PALETTE.length)*137.508)%360,85,[30,38,34][i%3]); /* 31st doctor onwards */
-  return {fg};
-}
-const dotHtml=n=>n?`<i class="dot" style="background:${docColor(n).fg}"></i>`:'';
-const cellStyle=n=>n?`color:${docColor(n).fg}`:'';
-
 /* ---------- setup ---------- */
 $('selM').innerHTML=MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
 function monthLabel(){$('monthLbl').textContent=MONTHS[S.month]+' '+S.year}
@@ -228,7 +204,7 @@ function refreshSelects(){
   $('priSel').innerHTML=opts; $('rDoc').innerHTML=opts;
 }
 function renderChips(){
-  $('priChips').innerHTML=S.priority.map((n,i)=>`<span class="chip dcc" style="color:${docColor(n).fg}">${esc(n)} <button class="x" data-i="${i}" aria-label="حذف">×</button></span>`).join('')||'<span class="muted">لا يوجد</span>';
+  $('priChips').innerHTML=S.priority.map((n,i)=>`<span class="chip">${esc(n)} <button class="x" data-i="${i}" aria-label="حذف">×</button></span>`).join('')||'<span class="muted">لا يوجد</span>';
   $('priChips').querySelectorAll('.x').forEach(b=>b.onclick=()=>{S.priority.splice(b.dataset.i,1);renderChips()});
 }
 function renderRules(){
@@ -252,7 +228,7 @@ $('btnDate').onclick=()=>{$('selM').value=S.month;$('selY').value=S.year;$('dlgD
 $('dateOk').onclick=()=>{S.month=+$('selM').value;S.year=+$('selY').value||S.year;monthLabel();$('dlgDate').close()};
 $('btnDocs').onclick=()=>{
   if(!S.docs.length)return alert('ارفع ملف الأطباء أولاً.');
-  $('docList').innerHTML=S.docs.map((d,i)=>`<label><input type="checkbox" data-n="${i}" ${S.active.has(d.name)?'checked':''}> ${dotHtml(d.name)}${esc(d.name)}</label>`).join('');
+  $('docList').innerHTML=S.docs.map((d,i)=>`<label><input type="checkbox" data-n="${i}" ${S.active.has(d.name)?'checked':''}> ${esc(d.name)}</label>`).join('');
   $('dlgDocs').showModal();
 };
 $('allOn').onclick=()=>$('docList').querySelectorAll('input').forEach(c=>c.checked=true);
@@ -338,12 +314,12 @@ function render(){
   let rows='';
   for(let d=1;d<=N;d++){
     const w=dow(d),cls=w===5?'fri':w===6?'sat':'';
-    const opts=all.map(n=>`<option style="color:${docColor(n).fg};font-weight:700" ${n===S.sched[d]?'selected':''}>${esc(n)}</option>`).join('');
-    rows+=`<tr class="${cls}"><td>${d}</td><td>${pad(d)}/${pad(S.month+1)}/${S.year}</td><td>${DAYS[w]}</td><td class="dc" id="dc${d}" style="${cellStyle(S.sched[d])}"><select data-d="${d}">${opts}</select></td><td class="ph" id="ph${d}" dir="ltr">${esc(phoneOf(S.sched[d]))}</td></tr>`;
+    const opts=all.map(n=>`<option ${n===S.sched[d]?'selected':''}>${esc(n)}</option>`).join('');
+    rows+=`<tr class="${cls}"><td>${d}</td><td>${pad(d)}/${pad(S.month+1)}/${S.year}</td><td>${DAYS[w]}</td><td><select data-d="${d}">${opts}</select></td><td class="ph" id="ph${d}" dir="ltr">${esc(phoneOf(S.sched[d]))}</td></tr>`;
   }
   $('schedWrap').innerHTML=`<p class="title">${esc(titleText())}</p><table><thead><tr><th>التسلسل</th><th>التاريخ</th><th>اليوم</th><th>اسم الطبيب</th><th>رقم الهاتف</th></tr></thead><tbody>${rows}</tbody></table>`;
   $('schedWrap').querySelectorAll('select').forEach(s=>s.onchange=()=>{
-    const d=+s.dataset.d;S.sched[d]=s.value;$('ph'+d).textContent=phoneOf(s.value);$('dc'+d).setAttribute('style',cellStyle(s.value));summarize();
+    const d=+s.dataset.d;S.sched[d]=s.value;$('ph'+d).textContent=phoneOf(s.value);summarize();
   });
   summarize();
 }
@@ -367,7 +343,7 @@ function summarize(){
     const w=dow(d);
     if((w===5||w===6)&&S.sched[d]&&S.sched[d]===S.sched[d-7])flag(S.sched[d],`${DAYS[w]} متتالية (يوم ${d-7} ويوم ${d})`);
   }
-  $('summary').innerHTML=`<table><thead><tr><th>الطبيب</th><th>الكل</th><th>الجمعة</th><th>السبت</th><th>الحالة</th></tr></thead><tbody>${names.map(n=>`<tr><td class="dn" style="${cellStyle(n)}">${esc(n)}</td><td>${c[n].t}</td><td>${c[n].f}</td><td>${c[n].s}</td><td><span class="badge ${issues[n]?'b-warn':'b-ok'}">${issues[n]?'تنبيه':'متوازن'}</span></td></tr>`).join('')}</tbody></table>`;
+  $('summary').innerHTML=`<table><thead><tr><th>الطبيب</th><th>الكل</th><th>الجمعة</th><th>السبت</th><th>الحالة</th></tr></thead><tbody>${names.map(n=>`<tr><td>${esc(n)}</td><td>${c[n].t}</td><td>${c[n].f}</td><td>${c[n].s}</td><td><span class="badge ${issues[n]?'b-warn':'b-ok'}">${issues[n]?'تنبيه':'متوازن'}</span></td></tr>`).join('')}</tbody></table>`;
   $('alerts').innerHTML=msgs.length?msgs.map(m=>`<div class="alert" role="alert">⚠ ${esc(m)}</div>`).join(''):'<div class="okmsg">توزيع الجمع والسبوت متوازن، ولا توجد خفارات متتالية في نفس اليوم من الأسبوع.</div>';
 }
 
@@ -376,7 +352,7 @@ function cleanTable(){
   let r='';
   for(let d=1;d<=dim();d++){
     const w=dow(d),bg=w===5?'#fff1cf':w===6?'#e1edff':'#fff';
-    r+=`<tr style="background:${bg}"><td>${d}</td><td>${pad(d)}/${pad(S.month+1)}/${S.year}</td><td>${DAYS[w]}</td><td${S.sched[d]?` style="color:${docColor(S.sched[d]).fg};font-weight:bold"`:''}>${S.sched[d]?`<font color="${docColor(S.sched[d]).fg}"><b>${esc(S.sched[d])}</b></font>`:''}</td><td dir="ltr">${esc(phoneOf(S.sched[d]))}</td></tr>`;
+    r+=`<tr style="background:${bg}"><td>${d}</td><td>${pad(d)}/${pad(S.month+1)}/${S.year}</td><td>${DAYS[w]}</td><td>${esc(S.sched[d])}</td><td dir="ltr">${esc(phoneOf(S.sched[d]))}</td></tr>`;
   }
   const cell='border:1px solid #444;padding:4px 6px;text-align:center;font-size:12px';
   return `<h2 style="text-align:center;font-size:16px;margin:0 0 10px">${esc(titleText())}</h2>
@@ -396,23 +372,14 @@ $('expDoc').onclick=()=>{
 };
 $('expPdf').onclick=async()=>{
   if(!need())return;
-  /* html2canvas captures relative to the page scroll position: with a scrolled page the
-     off-screen element was captured empty (blank PDF). Scroll to top, use an absolutely
-     positioned wrapper and tell html2canvas the scroll offset is 0. */
-  const sx=scrollX,sy=scrollY;scrollTo(0,0);
   const el=document.createElement('div');
-  el.dir='rtl';
-  el.style.cssText='position:absolute;top:0;left:0;width:720px;background:#fff;color:#000;padding:10px;z-index:-1;font-family:Cairo,Arial,sans-serif';
+  el.dir='rtl';el.style.cssText='position:fixed;top:0;left:0;width:720px;background:#fff;color:#000;padding:10px;z-index:-1;font-family:Cairo,Arial,sans-serif';
   el.innerHTML=cleanTable();document.body.appendChild(el);
   try{
     if(document.fonts)await document.fonts.ready;
-    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
-    await html2pdf().set({margin:10,filename:fname()+'.pdf',image:{type:'jpeg',quality:.98},
-      html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0,x:0,y:0,windowWidth:760,width:el.offsetWidth,height:el.offsetHeight},
-      pagebreak:{mode:['css','legacy'],avoid:'tr'},
-      jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(el).save();
-  }catch(e){console.error(e);alert('تعذّر إنشاء PDF.')}
-  el.remove();scrollTo(sx,sy);
+    await html2pdf().set({margin:10,filename:fname()+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(el).save();
+  }catch(e){alert('تعذّر إنشاء PDF.')}
+  el.remove();
 };
 </script>
 <script>
