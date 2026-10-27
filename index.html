@@ -86,8 +86,12 @@ header,main{position:relative;z-index:2}
 @media(prefers-reduced-motion:reduce){.sp span{animation:none;opacity:1;transform:none}.glow,.pill::before{animation:none}.rv{opacity:1;translate:none}.tilt{transition:none}}
 main[hidden]{display:none}
 /* ===== doctor colour coding ===== */
-#docRows input{min-width:0;width:100%;padding:4px 8px}
-#docRows td{padding:3px 6px}
+#dlgDocs{width:min(780px,95vw)}
+.drow{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(0,1.2fr) minmax(0,1.1fr) auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)}
+.drow input[type=text]{min-width:0;width:100%;padding:5px 8px}
+.drow .dchk{margin:0;cursor:pointer;font-weight:700}
+.dhead{font-size:.8rem;color:var(--mut);padding-bottom:2px}
+@media(max-width:620px){.drow{grid-template-columns:1fr 1fr}.drow .dchk{grid-column:1/-1}.dhead{display:none}}
 .dot{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:middle;margin-inline-end:6px;border:1px solid rgba(0,0,0,.25);flex:none}
 td.dc select{font-weight:700;color:inherit}
 td.dc select option{background:#fff}
@@ -117,27 +121,13 @@ td.dn{text-align:start;font-weight:700}
     <h2>الإعدادات الأساسية</h2>
     <div class="row">
       <div><label for="hosp">اسم المستشفى</label><input type="text" id="hosp" placeholder="مثال: مستشفى ابن الهيثم"></div>
-      <div><label for="file">استيراد أطباء إضافيين من Excel (الاسم، العنوان الوظيفي، الهاتف)</label><input type="file" id="file" accept=".xlsx,.xls"></div>
-      <button class="sec" id="btnDate">Select Month &amp; Year</button>
-      <button class="sec" id="btnDocs">Manage Active Doctors</button>
+      <div><label for="btnFile">استيراد أطباء إضافيين من Excel (الاسم، العنوان الوظيفي، الهاتف)</label><div class="row" style="flex-wrap:nowrap;align-items:center"><input type="file" id="file" accept=".xlsx,.xls" hidden><button type="button" class="sec" id="btnFile">اختيار ملف</button><span class="muted" id="fileName">لم يتم اختيار ملف</span></div></div>
+      <button class="sec" id="btnDate">اختيار الشهر والسنة</button>
+      <div><label for="gapDays">أيام الراحة الدنيا بين خفارتين لنفس الطبيب</label><input type="number" id="gapDays" min="0" max="10" value="5" style="min-width:70px;width:90px"></div>
+      <button class="sec" id="btnDocs">الأطباء الحاليون</button>
+      <button class="sec" id="btnAddDoc">إضافة طبيب جديد</button>
     </div>
     <p class="muted" id="status"></p>
-  </section>
-
-  <section class="card" id="docsCard">
-    <h2>قاعدة بيانات الأطباء المقيمين <span class="badge b-ok" id="docCount"></span></h2>
-    <div class="row">
-      <div><label for="nName">الاسم الثلاثي</label><input type="text" id="nName" placeholder="د.الاسم الثلاثي" style="min-width:230px"></div>
-      <div><label for="nTitle">العنوان الوظيفي</label><input type="text" id="nTitle" list="titleList" placeholder="مقيم اقدم / مقيمة قدمى" style="min-width:170px"></div>
-      <div><label for="nPhone">رقم الهاتف</label><input type="text" id="nPhone" dir="ltr" inputmode="tel" placeholder="07XX XXX XXXX" style="min-width:150px"></div>
-      <button id="nAdd">إضافة طبيب</button>
-    </div>
-    <datalist id="titleList"></datalist>
-    <div class="dl" style="max-height:340px;margin-top:12px">
-      <table><thead><tr><th>#</th><th>الاسم الثلاثي</th><th>العنوان الوظيفي</th><th>رقم الهاتف</th><th>حذف</th></tr></thead><tbody id="docRows"></tbody></table>
-    </div>
-    <div class="actions"><button class="sec" id="docExport">تصدير القائمة (Excel)</button><button class="sec" id="docReset">استعادة القائمة الأصلية</button></div>
-    <p class="muted">تُحفظ التعديلات تلقائياً في هذا المتصفح. اللون المخصص لكل طبيب ثابت ولا يتغير عند الحذف أو الإضافة.</p>
   </section>
 
   <section class="grid2">
@@ -145,7 +135,7 @@ td.dn{text-align:start;font-weight:700}
       <h2>أطباء الأولوية (الخفارة الإضافية +1)</h2>
       <div class="row"><div><label for="priSel">اختر طبيباً</label><select id="priSel"></select></div><button class="sec" id="priAdd">إضافة</button></div>
       <div class="chips" id="priChips"></div>
-      <p class="muted">تُمنح الخفارات الزائدة (باقي القسمة) لهؤلاء الأطباء أولاً.</p>
+      <p class="muted">تُمنح الخفارات الزائدة (باقي قسمة أيام الشهر على عدد الأطباء) لهؤلاء الأطباء أولاً حسب ترتيب إضافتهم. إذا لم يوجد باقي (مثل شباط 28 يوماً مع 14 طبيباً) يتساوى الجميع.</p>
     </div>
     <div class="card">
       <h2>طلبات وقيود تواريخ محددة</h2>
@@ -180,19 +170,30 @@ td.dn{text-align:start;font-weight:700}
   <div class="row"><div><label for="selM">الشهر</label><select id="selM"></select></div><div><label for="selY">السنة</label><input type="number" id="selY" min="2020" max="2100"></div></div>
   <div class="actions"><button id="dateOk">تأكيد</button></div>
 </dialog>
-<dialog id="dlgDocs">
-  <h2>الأطباء الفعّالون</h2>
+<datalist id="titleList"></datalist>
+<dialog id="dlgDocs" aria-labelledby="docsTitle">
+  <h2 id="docsTitle" style="margin-top:0">الأطباء الحاليون <span class="badge b-ok" id="docActiveCount"></span></h2>
   <div class="actions" style="margin:0"><button class="sec" id="allOn">تحديد الكل</button><button class="sec" id="allOff">إلغاء الكل</button></div>
   <div class="dl" id="docList"></div>
-  <p class="muted">الطبيب غير المحدد لن تُسند إليه أي خفارة.</p>
-  <div class="actions"><button id="docsOk">تأكيد</button></div>
+  <p class="muted">الطبيب غير المحدد لن تُسند إليه أي خفارة. تُحفظ التعديلات تلقائياً في هذا المتصفح.</p>
+  <div class="actions"><button id="docsOk">تم</button><button class="sec" id="docExport">تصدير القائمة (Excel)</button><button class="sec" id="docReset">استعادة القائمة الأصلية</button></div>
+</dialog>
+<dialog id="dlgAdd" aria-labelledby="addTitle">
+  <h2 id="addTitle" style="margin-top:0">إضافة طبيب جديد</h2>
+  <div style="display:grid;gap:10px">
+    <div><label for="nName">الاسم الثلاثي</label><input type="text" id="nName" placeholder="د.الاسم الثلاثي" style="width:100%"></div>
+    <div><label for="nTitle">العنوان الوظيفي</label><input type="text" id="nTitle" list="titleList" placeholder="مقيم اقدم / مقيمة قدمى" style="width:100%"></div>
+    <div><label for="nPhone">رقم الهاتف</label><input type="text" id="nPhone" dir="ltr" inputmode="tel" placeholder="07XX XXX XXXX" style="width:100%"></div>
+  </div>
+  <p class="muted" id="addMsg" role="status" style="min-height:1.6em"></p>
+  <div class="actions"><button id="nAdd">إضافة</button><button class="sec" id="addClose">إغلاق</button></div>
 </dialog>
 
 <script>
 const MONTHS=['كانون الثاني','شباط','آذار','نيسان','أيار','حزيران','تموز','آب','أيلول','تشرين الأول','تشرين الثاني','كانون الأول'];
 const DAYS=['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 const $=id=>document.getElementById(id);
-const S={docs:[],active:new Set(),month:new Date().getMonth(),year:new Date().getFullYear(),priority:[],rules:[],sched:[]};
+const S={docs:[],active:new Set(),month:new Date().getMonth(),year:new Date().getFullYear(),priority:[],rules:[],sched:[],gap:5};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const dim=()=>new Date(S.year,S.month+1,0).getDate();
 const dow=d=>new Date(S.year,S.month,d).getDay();
@@ -222,8 +223,10 @@ $('selM').innerHTML=MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join
 function monthLabel(){const el=$('monthLbl');if(el)el.textContent=MONTHS[S.month]+' '+S.year}
 monthLabel();
 
+$('btnFile').onclick=()=>$('file').click();
 $('file').addEventListener('change',e=>{
   const f=e.target.files[0]; if(!f)return;
+  $('fileName').textContent=f.name;
   const r=new FileReader();
   r.onload=ev=>{
     try{
@@ -287,20 +290,30 @@ function nextCi(){const used=new Set(S.docs.map(d=>d.ci));let i=0;while(used.has
 function defaultDocs(){return DEFAULT_DOCS.map((d,i)=>({...d,ci:i}))}
 function statusText(){$('status').innerHTML=`عدد الأطباء في القاعدة: ${S.docs.length}. الشهر المحدد: <span id="monthLbl"></span>`;monthLabel()}
 function refreshPhones(){for(let d=1;d<=dim();d++){const el=$('ph'+d);if(el)el.textContent=phoneOf(S.sched[d])}}
+function updateDocBtn(){$('btnDocs').textContent=`الأطباء الحاليون (${S.docs.length})`}
+function updateActiveCount(){$('docActiveCount').textContent=`${S.active.size} / ${S.docs.length}`}
 function afterDocsChange(){
-  refreshSelects();renderChips();renderRules();renderDocsCard();statusText();
+  refreshSelects();renderChips();renderRules();renderDocsList();statusText();updateDocBtn();
   if(S.sched.length)render();
 }
-function renderDocsCard(){
-  $('docCount').textContent=S.docs.length;
+function applyActive(){ /* after check-marks change */
+  S.priority=S.priority.filter(n=>S.active.has(n));S.rules=S.rules.filter(r=>S.active.has(r.doc));
+  refreshSelects();renderChips();renderRules();updateActiveCount();
+}
+function renderDocsList(){
+  updateActiveCount();
   $('titleList').innerHTML=[...new Set(S.docs.map(d=>d.title).filter(Boolean))].map(t=>`<option value="${esc(t)}">`).join('');
-  $('docRows').innerHTML=S.docs.map((d,i)=>`<tr><td>${i+1}</td><td class="dn" style="${cellStyle(d.name)}">${esc(d.name)}</td><td><input type="text" list="titleList" data-i="${i}" data-f="title" value="${esc(d.title)}" aria-label="العنوان الوظيفي"></td><td><input type="text" dir="ltr" data-i="${i}" data-f="phone" value="${esc(d.phone)}" aria-label="رقم الهاتف"></td><td><button class="x" data-i="${i}" aria-label="حذف ${esc(d.name)}">×</button></td></tr>`).join('');
-  $('docRows').querySelectorAll('input').forEach(inp=>inp.onchange=()=>{
+  $('docList').innerHTML='<div class="drow dhead"><span>الاسم</span><span>العنوان الوظيفي</span><span>رقم الهاتف</span><span></span></div>'+
+  S.docs.map((d,i)=>`<div class="drow"><label class="dchk"><input type="checkbox" data-i="${i}" ${S.active.has(d.name)?'checked':''}><span style="${cellStyle(d.name)}">${esc(d.name)}</span></label><input type="text" list="titleList" data-i="${i}" data-f="title" value="${esc(d.title)}" aria-label="العنوان الوظيفي"><input type="text" dir="ltr" data-i="${i}" data-f="phone" value="${esc(d.phone)}" aria-label="رقم الهاتف"><button class="x" data-i="${i}" aria-label="حذف ${esc(d.name)}">×</button></div>`).join('');
+  $('docList').querySelectorAll('input[type=checkbox]').forEach(c=>c.onchange=()=>{
+    const n=S.docs[c.dataset.i].name;c.checked?S.active.add(n):S.active.delete(n);applyActive();
+  });
+  $('docList').querySelectorAll('input[type=text]').forEach(inp=>inp.onchange=()=>{
     const d=S.docs[inp.dataset.i];
     if(inp.dataset.f==='phone'){d.phone=normPhone(inp.value);inp.value=d.phone}else d.title=cleanName(inp.value);
     saveDocs();refreshPhones();
   });
-  $('docRows').querySelectorAll('.x').forEach(b=>b.onclick=()=>{
+  $('docList').querySelectorAll('.x').forEach(b=>b.onclick=()=>{
     const d=S.docs[b.dataset.i];
     if(!confirm(`حذف ${d.name} من القائمة؟`))return;
     S.docs.splice(b.dataset.i,1);S.active.delete(d.name);
@@ -309,15 +322,23 @@ function renderDocsCard(){
   });
 }
 function addDoctor(){
+  const msg=t=>{$('addMsg').textContent=t};
   const name=cleanName($('nName').value);
-  if(!name){alert('اكتب اسم الطبيب.');return $('nName').focus()}
-  if(S.docs.some(d=>d.name===name))return alert('هذا الطبيب موجود مسبقاً في القائمة.');
+  if(!name){msg('اكتب اسم الطبيب.');return $('nName').focus()}
+  if(S.docs.some(d=>d.name===name)){msg('هذا الطبيب موجود مسبقاً في القائمة.');return $('nName').focus()}
   S.docs.push({name,title:cleanName($('nTitle').value),phone:normPhone($('nPhone').value),ci:nextCi()});
   S.active.add(name);saveDocs();afterDocsChange();
-  $('nName').value=$('nTitle').value=$('nPhone').value='';$('nName').focus();
+  $('nName').value=$('nTitle').value=$('nPhone').value='';
+  msg(`تمت إضافة ${name}. يمكنك إضافة طبيب آخر.`);$('nName').focus();
 }
+$('btnAddDoc').onclick=()=>{$('addMsg').textContent='';$('dlgAdd').showModal();$('nName').focus()};
+$('addClose').onclick=()=>$('dlgAdd').close();
 $('nAdd').onclick=addDoctor;
 ['nName','nTitle','nPhone'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDoctor()}}));
+$('btnDocs').onclick=()=>{renderDocsList();$('dlgDocs').showModal()};
+$('allOn').onclick=()=>{S.active=new Set(S.docs.map(d=>d.name));renderDocsList();applyActive()};
+$('allOff').onclick=()=>{S.active=new Set();renderDocsList();applyActive()};
+$('docsOk').onclick=()=>$('dlgDocs').close();
 $('docReset').onclick=()=>{
   if(!confirm('سيتم حذف كل التعديلات والعودة إلى القائمة الأصلية. متابعة؟'))return;
   S.docs=defaultDocs();S.active=new Set(S.docs.map(d=>d.name));S.priority=[];S.rules=[];
@@ -334,23 +355,11 @@ S.docs=loadDocs()||defaultDocs();
 S.docs.forEach(d=>{d.title=d.title||'';d.phone=d.phone||''});
 S.docs.forEach(d=>{if(typeof d.ci!=='number')d.ci=nextCi()});
 S.active=new Set(S.docs.map(d=>d.name));
-refreshSelects();renderChips();renderRules();renderDocsCard();statusText();
+refreshSelects();renderChips();renderRules();renderDocsList();statusText();updateDocBtn();
 
 /* modals */
 $('btnDate').onclick=()=>{$('selM').value=S.month;$('selY').value=S.year;$('dlgDate').showModal()};
 $('dateOk').onclick=()=>{S.month=+$('selM').value;S.year=+$('selY').value||S.year;monthLabel();$('dlgDate').close()};
-$('btnDocs').onclick=()=>{
-  if(!S.docs.length)return alert('أضف أطباء أولاً.');
-  $('docList').innerHTML=S.docs.map((d,i)=>`<label><input type="checkbox" data-n="${i}" ${S.active.has(d.name)?'checked':''}> ${dotHtml(d.name)}${esc(d.name)}${d.title?` <span class="muted">(${esc(d.title)})</span>`:''}</label>`).join('');
-  $('dlgDocs').showModal();
-};
-$('allOn').onclick=()=>$('docList').querySelectorAll('input').forEach(c=>c.checked=true);
-$('allOff').onclick=()=>$('docList').querySelectorAll('input').forEach(c=>c.checked=false);
-$('docsOk').onclick=()=>{
-  S.active=new Set([...$('docList').querySelectorAll('input')].filter(c=>c.checked).map(c=>S.docs[c.dataset.n].name));
-  S.priority=S.priority.filter(n=>S.active.has(n)); S.rules=S.rules.filter(r=>S.active.has(r.doc));
-  refreshSelects();renderChips();renderRules();$('dlgDocs').close();
-};
 
 /* ---------- algorithm ---------- */
 function allowed(doc,day){
@@ -361,6 +370,9 @@ function allowed(doc,day){
   }
   return true;
 }
+/* minimum rest days between two shifts of the same doctor (S.gap days in between) */
+function gapOk(a,doc,day){for(let k=1;k<=S.gap;k++){if(a[day-k]===doc||a[day+k]===doc)return false}return true}
+function readGap(){const v=parseInt($('gapDays').value,10);S.gap=isNaN(v)?5:Math.max(0,Math.min(10,v))}
 function quotas(names,N){
   const base=Math.floor(N/names.length);let rem=N%names.length;
   const q={};names.forEach(n=>q[n]=base);
@@ -374,15 +386,31 @@ function scoreSched(a,names){
   const c={};names.forEach(n=>c[n]={f:0,s:0});
   for(let d=1;d<=N;d++){
     if(!a[d])return 1e9;
+    for(let k=1;k<=S.gap&&d+k<=N;k++){if(a[d]===a[d+k])s+=1000}
+    if(!allowed(a[d],d))s+=500;
     const w=dow(d);if(w===5)c[a[d]].f++;if(w===6)c[a[d]].s++;
     if(d>1&&a[d]===a[d-1])s+=40;
     if(d>7&&(w===5||w===6)&&a[d]===a[d-7])s+=60;
     if(d>1&&(w===6&&dow(d-1)===5)&&a[d]===a[d-1])s+=20;
   }
+  const tot={};names.forEach(n=>tot[n]=0);for(let d=1;d<=N;d++)tot[a[d]]=(tot[a[d]]||0)+1;
+  const tv=names.map(n=>tot[n]||0);s+=(Math.max(...tv)-Math.min(...tv)-1>0)?(Math.max(...tv)-Math.min(...tv)-1)*150:0;
+  /* priority doctors must receive the extra (remainder) shifts first, in the order they were chosen */
+  const pri=S.priority.filter(n=>names.includes(n)),base=Math.floor(N/names.length),rem=N%names.length,nPri=Math.min(rem,pri.length),winners=pri.slice(0,nPri);
+  winners.forEach(n=>{if((tot[n]||0)<base+1)s+=800});
+  if(pri.length>=rem)names.forEach(n=>{if(!winners.includes(n)&&(tot[n]||0)>base)s+=800});
   const fs=names.map(n=>c[n].f),ss=names.map(n=>c[n].s);
   s+=(Math.max(...fs)-Math.min(...fs)>1?200:(Math.max(...fs)-Math.min(...fs))*15);
   s+=(Math.max(...ss)-Math.min(...ss)>1?200:(Math.max(...ss)-Math.min(...ss))*15);
   return s;
+}
+/* strict rotation: guarantees (n-1) rest days between a doctor's shifts when n doctors are active */
+function rotation(names,N){
+  const pri=S.priority.filter(n=>names.includes(n)).sort(()=>Math.random()-.5);
+  const rest=names.filter(n=>!pri.includes(n)).sort(()=>Math.random()-.5);
+  const perm=[...pri,...rest],a=new Array(N+1).fill(null);
+  for(let d=1;d<=N;d++)a[d]=perm[(d-1)%perm.length];
+  return a;
 }
 function attempt(names,N){
   const left=quotas(names,N),a=new Array(N+1).fill(null),cnt={};
@@ -392,7 +420,11 @@ function attempt(names,N){
   order.sort((x,y)=>x.k-y.k||x.w-y.w||x.r-y.r);
   for(const {d} of order){
     const w=dow(d);
-    let cands=names.filter(n=>allowed(n,d)&&left[n]>0);
+    const ok=n=>gapOk(a,n,d);
+    let cands=names.filter(n=>allowed(n,d)&&left[n]>0&&ok(n));
+    if(!cands.length)cands=names.filter(n=>allowed(n,d)&&ok(n));
+    if(!cands.length)cands=names.filter(n=>left[n]>0&&ok(n));
+    if(!cands.length)cands=names.filter(ok);
     if(!cands.length)cands=names.filter(n=>allowed(n,d));
     if(!cands.length)cands=names.slice();
     let best=null,bs=1e9;
@@ -413,11 +445,14 @@ $('gen').onclick=()=>{
   const names=activeNames();
   if(!S.docs.length)return alert('أضف أطباء أولاً.');
   if(!names.length)return alert('لا يوجد أطباء فعّالون.');
+  readGap();
   const N=dim();let best=null,bs=1e9;
-  for(let i=0;i<500;i++){const a=attempt(names,N),s=scoreSched(a,names);if(s<bs){bs=s;best=a;if(s===0)break}}
+  for(let i=0;i<3000;i++){const a=(i%4===3)?rotation(names,N):attempt(names,N),s=scoreSched(a,names);if(s<bs){bs=s;best=a;if(s===0)break}}
   S.sched=best;render();
   $('out').hidden=false;$('out').scrollIntoView({behavior:'smooth'});
 };
+
+$('gapDays').addEventListener('change',()=>{readGap();if(S.sched.length)summarize()});
 
 /* ---------- rendering ---------- */
 function titleText(){return `جدول خفارات الأطباء المقيمين لشعبة العيون - ${$('hosp').value.trim()||'[اسم المستشفى]'} - لشهر ${MONTHS[S.month]} ${S.year}`}
@@ -456,8 +491,15 @@ function summarize(){
     const w=dow(d);
     if((w===5||w===6)&&S.sched[d]&&S.sched[d]===S.sched[d-7])flag(S.sched[d],`${DAYS[w]} متتالية (يوم ${d-7} ويوم ${d})`);
   }
+  for(let d=1;d<S.sched.length;d++){
+    const n=S.sched[d];if(!n)continue;
+    for(let k=1;k<=S.gap&&d+k<S.sched.length;k++){
+      if(S.sched[d+k]===n){flag(n,`خفارتان قريبتان: يوم ${d} ويوم ${d+k} (بينهما ${k-1} يوم فقط والمطلوب ${S.gap} على الأقل)`);break}
+    }
+  }
+  if(activeNames().length<=S.gap)msgs.push(`عدد الأطباء الفعّالين (${activeNames().length}) لا يكفي لضمان ${S.gap} أيام راحة بين الخفارات؛ أقصى فاصل ممكن ${Math.max(0,activeNames().length-1)} أيام.`);
   $('summary').innerHTML=`<table><thead><tr><th>الطبيب</th><th>الكل</th><th>الجمعة</th><th>السبت</th><th>الحالة</th></tr></thead><tbody>${names.map(n=>`<tr><td class="dn" style="${cellStyle(n)}">${esc(n)}</td><td>${c[n].t}</td><td>${c[n].f}</td><td>${c[n].s}</td><td><span class="badge ${issues[n]?'b-warn':'b-ok'}">${issues[n]?'تنبيه':'متوازن'}</span></td></tr>`).join('')}</tbody></table>`;
-  $('alerts').innerHTML=msgs.length?msgs.map(m=>`<div class="alert" role="alert">⚠ ${esc(m)}</div>`).join(''):'<div class="okmsg">توزيع الجمع والسبوت متوازن، ولا توجد خفارات متتالية في نفس اليوم من الأسبوع.</div>';
+  $('alerts').innerHTML=msgs.length?msgs.map(m=>`<div class="alert" role="alert">⚠ ${esc(m)}</div>`).join(''):`<div class="okmsg">توزيع الجمع والسبوت متوازن، ولا توجد خفارات متتالية في نفس اليوم من الأسبوع، والفاصل بين خفارات كل طبيب ${S.gap} أيام على الأقل.</div>`;
 }
 
 /* ---------- export ---------- */
@@ -473,7 +515,10 @@ function cleanTable(){
   <thead><tr style="background:#17302f;color:#fff"><th>التسلسل</th><th>التاريخ</th><th>اليوم</th><th>اسم الطبيب</th><th>رقم الهاتف</th></tr></thead><tbody>${r}</tbody></table>`;
 }
 function need(){if(!S.sched.length){alert('أنشئ الجدول أولاً.');return false}return true}
-function fname(){return `Shifts_${S.year}-${pad(S.month+1)}`}
+function fname(){
+  const h=$('hosp').value.trim();
+  return `جدول خفارات ${h?h+' ':''}لشهر ${MONTHS[S.month]}`.replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim();
+}
 $('expDoc').onclick=()=>{
   if(!need())return;
   const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${esc(titleText())}</title>
