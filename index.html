@@ -519,13 +519,66 @@ function fname(){
   const h=$('hosp').value.trim();
   return `جدول خفارات ${h?h+' ':''}لشهر ${MONTHS[S.month]}`.replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim();
 }
+/* ---------- real .docx export (built in the browser, no external library) ---------- */
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=u8=>{let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=CRC_T[(c^u8[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0};
+function zipStore(files){ /* files: [[name,string]] -> Uint8Array (uncompressed zip) */
+  const enc=new TextEncoder(),parts=[],cen=[];let off=0;
+  const d=new Date(),dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),tm=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);
+  for(const [name,text] of files){
+    const nb=enc.encode(name),db=enc.encode(text),crc=crc32(db);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);
+    lh.setUint16(10,tm,true);lh.setUint16(12,dt,true);lh.setUint32(14,crc,true);lh.setUint32(18,db.length,true);lh.setUint32(22,db.length,true);lh.setUint16(26,nb.length,true);lh.setUint16(28,0,true);
+    parts.push(new Uint8Array(lh.buffer),nb,db);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(10,0,true);
+    ch.setUint16(12,tm,true);ch.setUint16(14,dt,true);ch.setUint32(16,crc,true);ch.setUint32(20,db.length,true);ch.setUint32(24,db.length,true);ch.setUint16(28,nb.length,true);
+    ch.setUint32(42,off,true);
+    cen.push(new Uint8Array(ch.buffer),nb);
+    off+=30+nb.length+db.length;
+  }
+  const cenLen=cen.reduce((n,u)=>n+u.length,0),end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);end.setUint32(12,cenLen,true);end.setUint32(16,off,true);
+  const all=[...parts,...cen,new Uint8Array(end.buffer)],out=new Uint8Array(all.reduce((n,u)=>n+u.length,0));
+  let p=0;for(const u of all){out.set(u,p);p+=u.length}return out;
+}
+const xe=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function buildDocx(){
+  const W=[1050,1700,1500,3950,2006]; /* seq, date, day, name, phone = 10206 twips (A4 minus 1.5cm margins) */
+  const FONT='<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>';
+  const run=(t,o={})=>`<w:r><w:rPr>${FONT}${o.b?'<w:b/><w:bCs/>':''}${o.color?`<w:color w:val="${o.color}"/>`:''}<w:sz w:val="${o.sz||20}"/><w:szCs w:val="${o.sz||20}"/>${o.ltr?'':'<w:rtl/>'}</w:rPr><w:t xml:space="preserve">${xe(t)}</w:t></w:r>`;
+  const cell=(i,t,o={})=>`<w:tc><w:tcPr><w:tcW w:w="${W[i]}" w:type="dxa"/>${o.fill?`<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>`:''}<w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:bidi/><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/></w:pPr>${t===''?'':run(t,o)}</w:p></w:tc>`;
+  const heads=['التسلسل','التاريخ','اليوم','اسم الطبيب','رقم الهاتف'];
+  let rows=`<w:tr><w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>${heads.map((h,i)=>cell(i,h,{b:1,color:'FFFFFF',fill:'17302F'})).join('')}</w:tr>`;
+  for(let d=1;d<=dim();d++){
+    const w=dow(d),fill=w===5?'FFF1CF':w===6?'E1EDFF':'',n=S.sched[d]||'';
+    rows+=`<w:tr><w:trPr><w:cantSplit/></w:trPr>${cell(0,String(d),{fill,ltr:1})}${cell(1,`${pad(d)}/${pad(S.month+1)}/${S.year}`,{fill,ltr:1})}${cell(2,DAYS[w],{fill})}${cell(3,n,{fill,b:1,color:n?docColor(n).fg.slice(1).toUpperCase():''})}${cell(4,phoneOf(n),{fill,ltr:1})}</w:tr>`;
+  }
+  const bd=k=>`<w:${k} w:val="single" w:sz="4" w:space="0" w:color="444444"/>`;
+  const doc=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+<w:p><w:pPr><w:bidi/><w:spacing w:before="0" w:after="200"/><w:jc w:val="center"/></w:pPr>${run(titleText(),{b:1,sz:28})}</w:p>
+<w:tbl><w:tblPr><w:bidiVisual/><w:tblW w:w="${W.reduce((a,b)=>a+b)}" w:type="dxa"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(bd).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="40" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${W.map(x=>`<w:gridCol w:w="${x}"/>`).join('')}</w:tblGrid>${rows}</w:tbl>
+<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p>
+<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850" w:header="450" w:footer="450" w:gutter="0"/><w:bidi/></w:sectPr></w:body></w:document>`;
+  const ns='http://schemas.openxmlformats.org/';
+  return zipStore([
+    ['[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="${ns}package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`],
+    ['_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${ns}package/2006/relationships"><Relationship Id="rId1" Type="${ns}officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`],
+    ['word/_rels/document.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${ns}package/2006/relationships"><Relationship Id="rId1" Type="${ns}officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ['word/styles.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="20"/><w:szCs w:val="20"/><w:lang w:val="en-US" w:bidi="ar-IQ"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style></w:styles>`],
+    ['word/document.xml',doc]
+  ]);
+}
 $('expDoc').onclick=()=>{
   if(!need())return;
-  const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${esc(titleText())}</title>
-<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:BidiVisual/></w:WordDocument></xml><![endif]-->
-<style>@page{size:A4;margin:1.5cm}body{font-family:'Cairo','Arial',sans-serif;direction:rtl}</style></head><body dir="rtl">${cleanTable()}</body></html>`;
-  const blob=new Blob(['\ufeff',html],{type:'application/msword'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname()+'.doc';
+  const blob=new Blob([buildDocx()],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname()+'.docx';
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 };
 $('expPdf').onclick=async()=>{
